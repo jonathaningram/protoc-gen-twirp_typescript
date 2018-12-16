@@ -18,7 +18,7 @@ lint:
 	golint -set_exit_status ./...
 
 build_proto: install
-	protoc --twirp_out=. --go_out=. --twirp_typescript_out=package_name=haberdasher:./example/ts_client ./example/service.proto
+	protoc --twirp_out=. --go_out=. --twirp_typescript_out=package_name=haberdasher:./example/ts_client ./example/*.proto
 
 build_linux:
 	GOOS=linux GOARCH=amd64 go build -o ${BINARY} ${LDFLAGS} go.larrymyers.com/protoc-gen-twirp_typescript

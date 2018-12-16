@@ -1,78 +1,71 @@
-
-import {createTwirpRequest, throwTwirpError, Fetch} from './twirp';
-
+import { createTwirpRequest, throwTwirpError, Fetch } from "./twirp";
 
 export interface Hat {
-    size: number;
-    color: string;
-    name: string;
-    createdOn: Date;
-    
+  size: number;
+  color: string;
+  name: string;
+  createdOn: Date;
 }
 
 interface HatJSON {
-    size: number;
-    color: string;
-    name: string;
-    created_on: string;
-    
+  size: number;
+  color: string;
+  name: string;
+  created_on: string;
 }
 
-
-const JSONToHat = (m: HatJSON): Hat => {
-    return {
-        size: m.size,
-        color: m.color,
-        name: m.name,
-        createdOn: new Date(m.created_on),
-        
-    };
+const JSONToHat = (m: Hat | HatJSON): Hat => {
+  return {
+    size: m.size,
+    color: m.color,
+    name: m.name,
+    createdOn: new Date(
+      (m as Hat).createdOn ? (m as Hat).createdOn : (m as HatJSON).created_on
+    )
+  };
 };
 
 export interface Size {
-    inches: number;
-    
+  inches: number;
 }
 
 interface SizeJSON {
-    inches: number;
-    
+  inches: number;
 }
 
-
 const SizeToJSON = (m: Size): SizeJSON => {
-    return {
-        inches: m.inches,
-        
-    };
+  return {
+    inches: m.inches
+  };
 };
 
-
-
 export interface Haberdasher {
-    makeHat: (size: Size) => Promise<Hat>;
-    
+  makeHat: (size: Size) => Promise<Hat>;
 }
 
 export class DefaultHaberdasher implements Haberdasher {
-    private hostname: string;
-    private fetch: Fetch;
-    private pathPrefix = "/twirp/twitch.twirp.example.Haberdasher/";
+  private hostname: string;
+  private fetch: Fetch;
+  private writeCamelCase: boolean;
+  private pathPrefix = "/twirp/twitch.twirp.example.Haberdasher/";
 
-    constructor(hostname: string, fetch: Fetch) {
-        this.hostname = hostname;
-        this.fetch = fetch;
+  constructor(hostname: string, fetch: Fetch, writeCamelCase = false) {
+    this.hostname = hostname;
+    this.fetch = fetch;
+    this.writeCamelCase = writeCamelCase;
+  }
+  makeHat(size: Size): Promise<Hat> {
+    const url = this.hostname + this.pathPrefix + "MakeHat";
+    let body: Size | SizeJSON = size;
+    if (!this.writeCamelCase) {
+      body = SizeToJSON(size);
     }
-    makeHat(size: Size): Promise<Hat> {
-        const url = this.hostname + this.pathPrefix + "MakeHat";
-        return this.fetch(createTwirpRequest(url, SizeToJSON(size))).then((resp) => {
-            if (!resp.ok) {
-                return throwTwirpError(resp);
-            }
+    return this.fetch(createTwirpRequest(url, body)).then(resp => {
+      if (!resp.ok) {
+        return throwTwirpError(resp);
+      }
 
-            return resp.json().then(JSONToHat);
-        });
-    }
-    
+      return resp.json().then(JSONToHat);
+    });
+  }
 }
-

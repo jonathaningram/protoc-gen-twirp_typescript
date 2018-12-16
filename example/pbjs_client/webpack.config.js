@@ -1,33 +1,33 @@
-const path = require('path');
+const path = require("path");
 
 module.exports = {
-    entry: './main',
+  entry: "./main",
 
-    output: {
-        path: path.join(__dirname, 'dist'),
-        filename: 'main.js'
-    },
+  output: {
+    path: path.join(__dirname, "dist"),
+    filename: "main.js"
+  },
 
-    resolve: {
-        extensions: ['.ts', '.js']
-    },
+  resolve: {
+    extensions: [".ts", ".js"]
+  },
 
-    module: {
-        rules: [
-            {
-                test: /\.ts$/,
-                use: ['ts-loader']
-            }
-        ]
-    },
+  module: {
+    rules: [
+      {
+        test: /\.ts$/,
+        use: ["ts-loader"]
+      }
+    ]
+  },
 
-    mode: 'development',
+  mode: "development",
 
-    devtool: 'inline-source-map',
+  devtool: "inline-source-map",
 
-    devServer: {
-        contentBase: 'public',
-        host: '0.0.0.0',
-        port: 8081
-    }
+  devServer: {
+    contentBase: "public",
+    host: "0.0.0.0",
+    port: 8081
+  }
 };

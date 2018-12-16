@@ -43,16 +43,13 @@ func generate(in *plugin.CodeGeneratorRequest) *plugin.CodeGeneratorResponse {
 		return resp
 	}
 
-	for _, f := range in.GetProtoFile() {
-		files, err := gen.Generate(f)
-		if err != nil {
-			resp.Error = proto.String(err.Error())
-			return resp
-		}
-
-		for _, cf := range files {
-			resp.File = append(resp.File, cf)
-		}
+	files, err := gen.Generate(in)
+	if err != nil {
+		resp.Error = proto.String(err.Error())
+		return resp
+	}
+	for _, f := range files {
+		resp.File = append(resp.File, f)
 	}
 
 	return resp

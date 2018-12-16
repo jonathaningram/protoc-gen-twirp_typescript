@@ -3,8 +3,12 @@ package minimal
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"os"
+	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 	"text/template"
 
@@ -125,15 +129,15 @@ type ServiceMethod struct {
 	OutputType string
 }
 
-func NewAPIContext(twirpVersion string) APIContext {
+func NewAPIContext(twirpVersion string) *APIContext {
 	twirpPrefix := "/twirp"
 	if twirpVersion == "v6" {
 		twirpPrefix = ""
 	}
-
-	ctx := APIContext{TwirpPrefix: twirpPrefix}
-	ctx.modelLookup = make(map[string]*Model)
-
+	ctx := &APIContext{
+		TwirpPrefix: twirpPrefix,
+		modelLookup: make(map[string]*Model),
+	}
 	return ctx
 }
 
@@ -211,16 +215,62 @@ func (ctx *APIContext) enableUnmarshal(m *Model) {
 	}
 }
 
-func NewGenerator(twirpVersion string, p map[string]string) *Generator {
-	return &Generator{twirpVersion: twirpVersion, params: p}
+func NewGenerator(twirpVersion string, p map[string]string, prettierPath string) *Generator {
+	return &Generator{twirpVersion: twirpVersion, params: p, prettierPath: prettierPath}
 }
 
 type Generator struct {
 	twirpVersion string
 	params       map[string]string
+	prettierPath string
 }
 
-func (g *Generator) Generate(d *descriptor.FileDescriptorProto) ([]*plugin.CodeGeneratorResponse_File, error) {
+func (g *Generator) Generate(in *plugin.CodeGeneratorRequest) ([]*plugin.CodeGeneratorResponse_File, error) {
+	ctx := NewAPIContext(g.twirpVersion)
+
+	var files []*plugin.CodeGeneratorResponse_File
+
+	for _, f := range in.GetProtoFile() {
+		fs, err := g.generateFromProtoFile(ctx, f)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, fs...)
+	}
+
+	files = append(files, RuntimeLibrary())
+
+	if pkgName, ok := g.params["package_name"]; ok {
+		idx, err := CreatePackageIndex(files)
+		if err != nil {
+			return nil, err
+		}
+
+		files = append(files, idx)
+		files = append(files, CreateTSConfig())
+		files = append(files, CreatePackageJSON(pkgName))
+	}
+
+	for _, f := range files {
+		tmpfile, err := ioutil.TempFile("", fmt.Sprintf("*%s", filepath.Ext(*f.Name)))
+		if err != nil {
+			return nil, err
+		}
+		defer os.Remove(tmpfile.Name())
+		if _, err := tmpfile.Write([]byte(*f.Content)); err != nil {
+			return nil, err
+		}
+		out, err := exec.Command(g.prettierPath, tmpfile.Name()).Output()
+		if err != nil {
+			return nil, err
+		}
+		f.Content = proto.String(string(out))
+	}
+
+	return files, nil
+}
+
+func (g *Generator) generateFromProtoFile(ctx *APIContext, d *descriptor.FileDescriptorProto) ([]*plugin.CodeGeneratorResponse_File, error) {
 	var files []*plugin.CodeGeneratorResponse_File
 
 	// skip WKT Timestamp, we don't do any special serialization for jsonpb.
@@ -228,7 +278,6 @@ func (g *Generator) Generate(d *descriptor.FileDescriptorProto) ([]*plugin.CodeG
 		return files, nil
 	}
 
-	ctx := NewAPIContext(g.twirpVersion)
 	pkg := d.GetPackage()
 
 	// Parse all Messages for generating typescript interfaces
@@ -315,18 +364,6 @@ func (g *Generator) Generate(d *descriptor.FileDescriptorProto) ([]*plugin.CodeG
 	clientAPI.Content = proto.String(b.String())
 
 	files = append(files, clientAPI)
-	files = append(files, RuntimeLibrary())
-
-	if pkgName, ok := g.params["package_name"]; ok {
-		idx, err := CreatePackageIndex(files)
-		if err != nil {
-			return nil, err
-		}
-
-		files = append(files, idx)
-		files = append(files, CreateTSConfig())
-		files = append(files, CreatePackageJSON(pkgName))
-	}
 
 	return files, nil
 }

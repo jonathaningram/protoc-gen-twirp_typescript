@@ -2,6 +2,10 @@ package pbjs
 
 import (
 	"bytes"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -59,17 +63,53 @@ type tmplContext struct {
 	TwirpPrefix string
 }
 
-func NewGenerator(twirpVersion string) *Generator {
-	return &Generator{twirpVersion: twirpVersion}
+func NewGenerator(twirpVersion string, prettierPath string) *Generator {
+	return &Generator{twirpVersion: twirpVersion, prettierPath: prettierPath}
 }
 
 type Generator struct {
 	twirpVersion string
+	prettierPath string
 }
 
-func (g *Generator) Generate(d *descriptor.FileDescriptorProto) ([]*plugin.CodeGeneratorResponse_File, error) {
+func (g *Generator) Generate(in *plugin.CodeGeneratorRequest) ([]*plugin.CodeGeneratorResponse_File, error) {
+	var files []*plugin.CodeGeneratorResponse_File
+
+	for _, f := range in.GetProtoFile() {
+		fs, err := g.generateFromProtoFile(f)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, fs...)
+	}
+
+	for _, f := range files {
+		tmpfile, err := ioutil.TempFile("", fmt.Sprintf("*%s", filepath.Ext(*f.Name)))
+		if err != nil {
+			return nil, err
+		}
+		defer os.Remove(tmpfile.Name())
+		if _, err := tmpfile.Write([]byte(*f.Content)); err != nil {
+			return nil, err
+		}
+		out, err := exec.Command(g.prettierPath, tmpfile.Name()).Output()
+		if err != nil {
+			return nil, err
+		}
+		f.Content = proto.String(string(out))
+	}
+
+	return files, nil
+}
+
+func (g *Generator) generateFromProtoFile(d *descriptor.FileDescriptorProto) ([]*plugin.CodeGeneratorResponse_File, error) {
 	// skip WKT Timestamp, we don't do any special serialization for jsonpb.
 	if *d.Name == "google/protobuf/timestamp.proto" {
+		return []*plugin.CodeGeneratorResponse_File{}, nil
+	}
+
+	// If there are no services, there's nothing to generate for this file.
+	if len(d.Service) == 0 {
 		return []*plugin.CodeGeneratorResponse_File{}, nil
 	}
 

@@ -12,12 +12,14 @@ import (
 
 	"github.com/golang/protobuf/ptypes"
 	"github.com/twitchtv/twirp"
-	"go.larrymyers.com/protoc-gen-twirp_typescript/example"
+	pb "go.larrymyers.com/protoc-gen-twirp_typescript/example"
 )
 
 type randomHaberdasher struct{}
 
-func (h *randomHaberdasher) MakeHat(ctx context.Context, size *example.Size) (*example.Hat, error) {
+var _ pb.Haberdasher = (*randomHaberdasher)(nil)
+
+func (h *randomHaberdasher) MakeHat(ctx context.Context, size *pb.Size) (*pb.Hat, error) {
 	if size.Inches <= 0 {
 		return nil, twirp.InvalidArgumentError("Inches", "must be a positive number greater than zero")
 	}
@@ -27,7 +29,7 @@ func (h *randomHaberdasher) MakeHat(ctx context.Context, size *example.Size) (*e
 		return nil, err
 	}
 
-	return &example.Hat{
+	return &pb.Hat{
 		Size:      size.Inches,
 		Color:     []string{"white", "black", "brown", "red", "blue"}[rand.Intn(4)],
 		Name:      []string{"bowler", "baseball cap", "top hat", "derby"}[rand.Intn(3)],
@@ -38,7 +40,7 @@ func (h *randomHaberdasher) MakeHat(ctx context.Context, size *example.Size) (*e
 func main() {
 	mux := http.NewServeMux()
 
-	mux.Handle(example.HaberdasherPathPrefix, example.NewHaberdasherServer(&randomHaberdasher{}, nil))
+	mux.Handle(pb.HaberdasherPathPrefix, pb.NewHaberdasherServer(&randomHaberdasher{}, nil))
 
 	handler := cors.AllowAll().Handler(mux)
 

@@ -1,11 +1,9 @@
 package generator
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/golang/protobuf/protoc-gen-go/descriptor"
 	plugin "github.com/golang/protobuf/protoc-gen-go/plugin"
 	"go.larrymyers.com/protoc-gen-twirp_typescript/generator/minimal"
 	"go.larrymyers.com/protoc-gen-twirp_typescript/generator/pbjs"
@@ -29,7 +27,7 @@ func GetParameters(in *plugin.CodeGeneratorRequest) map[string]string {
 }
 
 type Generator interface {
-	Generate(d *descriptor.FileDescriptorProto) ([]*plugin.CodeGeneratorResponse_File, error)
+	Generate(in *plugin.CodeGeneratorRequest) ([]*plugin.CodeGeneratorResponse_File, error)
 }
 
 func NewGenerator(p map[string]string) (Generator, error) {
@@ -37,15 +35,19 @@ func NewGenerator(p map[string]string) (Generator, error) {
 	if !ok {
 		version = "v5"
 	}
+	prettierPath, ok := p["prettier_path"]
+	if !ok {
+		prettierPath = "prettier"
+	}
 
 	if version != "v5" && version != "v6" {
-		return nil, errors.New(fmt.Sprintf("version is %s, must be v5 or v6", version))
+		return nil, fmt.Errorf("version is %s, must be v5 or v6", version)
 	}
 
 	lib, ok := p["library"]
 	if ok && lib == "pbjs" {
-		return pbjs.NewGenerator(version), nil
+		return pbjs.NewGenerator(version, prettierPath), nil
 	}
 
-	return minimal.NewGenerator(version, p), nil
+	return minimal.NewGenerator(version, p, prettierPath), nil
 }
